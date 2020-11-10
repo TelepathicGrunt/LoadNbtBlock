@@ -1,0 +1,13 @@
+{
+  "required": true,
+  "minVersion": "0.8",
+  "package": "com.telepathicgrunt.loadnbtblock.mixin",
+  "compatibilityLevel": "JAVA_8",
+  "mixins": [
+    "StructureBlockScreenMixin"
+  ],
+  "client": [],
+  "injectors": {
+    "defaultRequire": 1
+  }
+}
