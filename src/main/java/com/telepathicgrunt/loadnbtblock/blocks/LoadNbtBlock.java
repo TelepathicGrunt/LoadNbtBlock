@@ -72,7 +72,7 @@ public class LoadNbtBlock extends Block {
                         for (; mutableInChunk.getZ() < 16; mutableInChunk.move(0, 0, 1)) {
 
                             if(mutableInChunk.getY() == mutableChunk.getY())
-                                chunk.setBlockState(mutableInChunk, Blocks.STONE_SLAB.getDefaultState(), false);
+                                chunk.setBlockState(mutableInChunk, Blocks.STONE.getDefaultState(), false);
                             else
                                 chunk.setBlockState(mutableInChunk, Blocks.STRUCTURE_VOID.getDefaultState(), false);
                         }
