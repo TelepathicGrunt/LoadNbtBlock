@@ -102,20 +102,19 @@ public class LoadNbtBlock extends Block {
             BlockPos.Mutable mutableInChunk = new BlockPos.Mutable();
             mutableInChunk.set(0, yPos, 0);
             ChunkSection[] sections = chunkIn.getSectionArray();
+            Short zero = 0;
+            Short nonEmptyBlockCount = 256;
 
-            ChunkSection newChunkSection = new ChunkSection(-1);
+            ChunkSection newChunkSection = new ChunkSection(-1, nonEmptyBlockCount, zero, zero);
             newChunkSection.getContainer().read(palette1, blockStates1);
-            newChunkSection.calculateCounts();
             sections[0] = newChunkSection;
 
-            newChunkSection = new ChunkSection(0);
+            newChunkSection = new ChunkSection(0, nonEmptyBlockCount, zero, zero);
             newChunkSection.getContainer().read(palette2, blockStates2);
-            newChunkSection.calculateCounts();
             sections[1] = newChunkSection;
 
-            newChunkSection = new ChunkSection(1);
+            newChunkSection = new ChunkSection(1, nonEmptyBlockCount, zero, zero);
             newChunkSection.getContainer().read(palette2, blockStates2);
-            newChunkSection.calculateCounts();
             sections[2] = newChunkSection;
         };
 
