@@ -40,7 +40,7 @@ public class LoadNbtBlock extends Block {
     interface task<One, Two, Three> {
         void apply(One one, Two two, Three three);
     }
-    private final Map<Long, List<Pair<Integer, task<Chunk, World, BlockPos>>>> chunkJobs = new HashMap<>();
+    private final Map<Long, Pair<Integer, task<Chunk, World, Integer>>> chunkJobs = new HashMap<>();
 
     public ActionResult onUse(BlockState state, World world, BlockPos pos, PlayerEntity player, Hand hand, BlockHitResult hit) {
         if(!(world instanceof ServerWorld) || hand == Hand.MAIN_HAND) return ActionResult.PASS;
@@ -67,17 +67,17 @@ public class LoadNbtBlock extends Block {
         chunkJobs.clear();
 
         // Fill/clear area with structure void
-        task<Chunk, World, BlockPos> taskToRun = (chunkIn, worldIn, storedChunkPosIn) ->
+        task<Chunk, World, Integer> taskToRun = (chunkIn, worldIn, yPos) ->
         {
             BlockPos.Mutable mutableInChunk = new BlockPos.Mutable();
-            mutableInChunk.set(0, storedChunkPosIn.getY(), 0);
+            mutableInChunk.set(0, yPos, 0);
             BlockState stateToUse;
 
             for (; mutableInChunk.getX() < 16; mutableInChunk.move(1, 0, 0)) {
-                for (; mutableInChunk.getY() < storedChunkPosIn.getY() + bounds.getY(); mutableInChunk.move(0, 1, 0)) {
+                for (; mutableInChunk.getY() < yPos + bounds.getY(); mutableInChunk.move(0, 1, 0)) {
                     for (; mutableInChunk.getZ() < 16; mutableInChunk.move(0, 0, 1)) {
 
-                        if (mutableInChunk.getY() == storedChunkPosIn.getY())
+                        if (mutableInChunk.getY() == yPos)
                             stateToUse = Blocks.STONE.getDefaultState();
                         else
                             stateToUse = Blocks.STRUCTURE_VOID.getDefaultState();
@@ -89,7 +89,7 @@ public class LoadNbtBlock extends Block {
                     }
                     mutableInChunk.set(mutableInChunk.getX(), mutableInChunk.getY(), 0);
                 }
-                mutableInChunk.set(mutableInChunk.getX(), storedChunkPosIn.getY(), mutableInChunk.getZ());
+                mutableInChunk.set(mutableInChunk.getX(), yPos, mutableInChunk.getZ());
             }
         };
 
@@ -102,7 +102,7 @@ public class LoadNbtBlock extends Block {
             for (; mutableChunk.getZ() < endChunkZ; mutableChunk.move(0, 0, 1)) {
                 chunkJobs.computeIfAbsent(
                         ChunkPos.toLong(mutableChunk.getX(), mutableChunk.getZ()), // Chunk to clear
-                        (chunkLong) -> Collections.singletonList(Pair.of(mutableChunk.getY(), taskToRun)) // task to run at y pos
+                        (chunkLong) -> Pair.of(mutableChunk.getY(), taskToRun) // task to run at y pos
                 );
             }
             mutableChunk.set(mutableChunk.getX(), mutableChunk.getY(), pos.getZ() >> 4); // Set back to start of row
@@ -115,20 +115,16 @@ public class LoadNbtBlock extends Block {
             executor.execute(new ServerTask(((MinecraftServerAccessor)executor).lnbtb_getTicks(), () -> {
                 int chunkX = ChunkPos.getPackedX(key);
                 int chunkZ = ChunkPos.getPackedZ(key);
-                WorldChunk chunk = world.getChunk(chunkX, chunkZ);
+                WorldChunk chunkToClear = world.getChunk(chunkX, chunkZ);
 
                 // Run the task to clear the chunk
-                chunkJobCollection.forEach(listEntry -> listEntry.getRight().apply(
-                        chunk,
-                        world,
-                        new BlockPos.Mutable(chunkX, listEntry.getLeft(), chunkZ)
-                ));
+                chunkJobCollection.getRight().apply(chunkToClear, world, chunkJobCollection.getLeft());
 
                 // Send changes to client to see
-                chunk.markDirty();
+                chunkToClear.markDirty();
                 ((ServerChunkManager) world.getChunkManager()).threadedAnvilChunkStorage
-                        .getPlayersWatchingChunk(chunk.getPos(), false)
-                        .forEach(s -> s.networkHandler.sendPacket(new ChunkDataS2CPacket(chunk, 65535)));
+                        .getPlayersWatchingChunk(chunkToClear.getPos(), false)
+                        .forEach(s -> s.networkHandler.sendPacket(new ChunkDataS2CPacket(chunkToClear, 65535)));
 
                 // Tell player progress so they know it is working
                 int currentSection = completedSections.get() + 1;
