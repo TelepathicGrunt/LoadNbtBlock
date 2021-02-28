@@ -14,23 +14,6 @@ import java.util.List;
 public class StructureNbtDataFixer {
 
 
-    public static void updateAllNbtFiles() throws IOException {
-        String mainPath = "C:\\Users\\Admin\\Documents\\PersonalFun\\Minecraft stuff\\JavaCodeMods\\ModdingWorkspace\\RepurposedStructures-Fabric";
-        String resourcePath = mainPath+"\\src\\main\\resources\\data";
-
-        List<File> files = new ArrayList<>();
-        setAllNbtFilesToList(resourcePath, files);
-        for(File file : files){
-            InputStream inputStream = new FileInputStream(file);
-
-            File resultingFile = new File(mainPath+"//"+file.getAbsolutePath().split("resources\\\\")[1]);
-            resultingFile.getParentFile().mkdirs();
-            OutputStream outputStream = new FileOutputStream(resultingFile);
-
-            CompoundTag newNBT = updateNbtCompound(inputStream);
-            NbtIo.writeCompressed(newNBT, outputStream);
-        }
-    }
 
     //source: https://stackoverflow.com/a/14676464
     public static void setAllNbtFilesToList(String directoryName, List<File> files) {
@@ -49,6 +32,19 @@ public class StructureNbtDataFixer {
         }
     }
 
+    public static void updateAllNbtFiles(String directoryName, List<File> files) throws IOException {
+        setAllNbtFilesToList(directoryName, files);
+        for(File file : files){
+            InputStream inputStream = new FileInputStream(file);
+
+            File resultingFile = new File(directoryName+"//"+file.getAbsolutePath().split("resources\\\\")[1]);
+            resultingFile.getParentFile().mkdirs();
+            OutputStream outputStream = new FileOutputStream(resultingFile);
+
+            CompoundTag newNBT = updateNbtCompound(inputStream);
+            NbtIo.writeCompressed(newNBT, outputStream);
+        }
+    }
 
     public static CompoundTag updateNbtCompound(InputStream structureInputStream) throws IOException {
         CompoundTag compoundTag = NbtIo.readCompressed(structureInputStream);

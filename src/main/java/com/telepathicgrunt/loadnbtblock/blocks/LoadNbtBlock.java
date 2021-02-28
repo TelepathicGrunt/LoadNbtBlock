@@ -1,5 +1,6 @@
 package com.telepathicgrunt.loadnbtblock.blocks;
 
+import com.telepathicgrunt.loadnbtblock.mixins.MinecraftServerAccessor;
 import com.telepathicgrunt.loadnbtblock.utils.StructureNbtDataFixer;
 import net.fabricmc.loader.api.FabricLoader;
 import net.minecraft.block.*;
@@ -7,10 +8,9 @@ import net.minecraft.block.entity.BlockEntity;
 import net.minecraft.block.entity.StructureBlockBlockEntity;
 import net.minecraft.block.enums.StructureBlockMode;
 import net.minecraft.entity.player.PlayerEntity;
-import net.minecraft.item.BlockItem;
-import net.minecraft.item.Item;
-import net.minecraft.item.ItemGroup;
 import net.minecraft.network.packet.s2c.play.ChunkDataS2CPacket;
+import net.minecraft.server.MinecraftServer;
+import net.minecraft.server.ServerTask;
 import net.minecraft.server.world.ServerChunkManager;
 import net.minecraft.server.world.ServerWorld;
 import net.minecraft.text.TranslatableText;
@@ -20,23 +20,32 @@ import net.minecraft.util.Identifier;
 import net.minecraft.util.hit.BlockHitResult;
 import net.minecraft.util.math.BlockPos;
 import net.minecraft.util.math.ChunkPos;
-import net.minecraft.util.registry.Registry;
 import net.minecraft.world.World;
+import net.minecraft.world.chunk.Chunk;
 import net.minecraft.world.chunk.WorldChunk;
+import org.apache.commons.lang3.tuple.Pair;
 
 import java.io.File;
-import java.util.ArrayList;
-import java.util.List;
+import java.util.*;
+import java.util.concurrent.atomic.AtomicInteger;
 
 public class LoadNbtBlock extends Block {
+
     public LoadNbtBlock() {
         super(Settings.of(Material.METAL, MaterialColor.LIGHT_GRAY).requiresTool().strength(-1.0F, 3600000.0F).dropsNothing());
     }
 
+    // source: https://github.com/williambl/explosivessquared/blob/master/src/main/kotlin/com/williambl/explosivessquared/util/actions/MassBlockActionManager.kt
+    @FunctionalInterface
+    interface task<One, Two, Three> {
+        void apply(One one, Two two, Three three);
+    }
+    private final Map<Long, List<Pair<Integer, task<Chunk, World, BlockPos>>>> chunkJobs = new HashMap<>();
+
     public ActionResult onUse(BlockState state, World world, BlockPos pos, PlayerEntity player, Hand hand, BlockHitResult hit) {
         if(!(world instanceof ServerWorld) || hand == Hand.MAIN_HAND) return ActionResult.PASS;
 
-        String mainPath = FabricLoader.getInstance().getGameDir().toString().replace("\\run\\.", "");
+        String mainPath = FabricLoader.getInstance().getGameDir().getParent().getParent().toString();
         String resourcePath = mainPath+"\\src\\main\\resources\\data";
 
         player.sendMessage(new TranslatableText(" Working.... "), true);
@@ -51,49 +60,98 @@ public class LoadNbtBlock extends Block {
         }
 
         // Size of area we will need
-        int columnCount = 7;
+        int columnCount = 13;
         int rowCount = (int) Math.max(Math.ceil(identifiers.size()) / columnCount, 1);
         int spacing = 48;
         BlockPos bounds = new BlockPos(spacing * (rowCount+2), spacing, spacing * columnCount);
-
+        chunkJobs.clear();
 
         // Fill/clear area with structure void
-        BlockPos.Mutable mutableChunk = new BlockPos.Mutable().set(pos.getX() >> 4, pos.getY(), pos.getZ() >> 4);
-        BlockPos.Mutable mutableInChunk = new BlockPos.Mutable();
-        mutableChunk.move(1,0,0);
+        task<Chunk, World, BlockPos> taskToRun = (chunkIn, worldIn, storedChunkPosIn) ->
+        {
+            BlockPos.Mutable mutableInChunk = new BlockPos.Mutable();
+            mutableInChunk.set(0, storedChunkPosIn.getY(), 0);
+            BlockState stateToUse;
 
-        for(; mutableChunk.getX() < (pos.getX() + bounds.getX()) >> 4; mutableChunk.move(1,0,0)) {
-            for (; mutableChunk.getZ() < (pos.getZ() + bounds.getZ()) >> 4; mutableChunk.move(0, 0, 1)) {
-                WorldChunk chunk = world.getChunk(mutableChunk.getX(), mutableChunk.getZ());
-                mutableInChunk.set(0, mutableChunk.getY(), 0);
+            for (; mutableInChunk.getX() < 16; mutableInChunk.move(1, 0, 0)) {
+                for (; mutableInChunk.getY() < storedChunkPosIn.getY() + bounds.getY(); mutableInChunk.move(0, 1, 0)) {
+                    for (; mutableInChunk.getZ() < 16; mutableInChunk.move(0, 0, 1)) {
 
-                for(; mutableInChunk.getX() < 16; mutableInChunk.move(1,0,0)) {
-                    for (; mutableInChunk.getY() < mutableChunk.getY() + bounds.getY(); mutableInChunk.move(0, 1, 0)) {
-                        for (; mutableInChunk.getZ() < 16; mutableInChunk.move(0, 0, 1)) {
+                        if (mutableInChunk.getY() == storedChunkPosIn.getY())
+                            stateToUse = Blocks.STONE.getDefaultState();
+                        else
+                            stateToUse = Blocks.STRUCTURE_VOID.getDefaultState();
 
-                            if(mutableInChunk.getY() == mutableChunk.getY())
-                                chunk.setBlockState(mutableInChunk, Blocks.STONE.getDefaultState(), false);
-                            else
-                                chunk.setBlockState(mutableInChunk, Blocks.STRUCTURE_VOID.getDefaultState(), false);
-                        }
-                        mutableInChunk.set(mutableInChunk.getX(), mutableInChunk.getY(), 0);
+                        chunkIn.setBlockState(
+                                mutableInChunk,
+                                stateToUse,
+                                false);
                     }
-                    mutableInChunk.set(mutableInChunk.getX(), mutableChunk.getY(), mutableInChunk.getZ());
+                    mutableInChunk.set(mutableInChunk.getX(), mutableInChunk.getY(), 0);
                 }
-                chunk.markDirty();
-                ((ServerChunkManager) world.getChunkManager()).threadedAnvilChunkStorage.getPlayersWatchingChunk(chunk.getPos(), false).forEach(s -> s.networkHandler.sendPacket(new ChunkDataS2CPacket(chunk, 65535)));
-
-                player.sendMessage(new TranslatableText(" Working at " + (mutableChunk.getX() << 4) + ", " + mutableChunk.getY() + ", " + (mutableChunk.getZ() << 4)), true);
+                mutableInChunk.set(mutableInChunk.getX(), storedChunkPosIn.getY(), mutableInChunk.getZ());
             }
-            mutableChunk.set(mutableChunk.getX(), mutableChunk.getY(), pos.getZ() >> 4);
+        };
+
+        BlockPos.Mutable mutableChunk = new BlockPos.Mutable().set(pos.getX() >> 4, pos.getY(), pos.getZ() >> 4);
+        mutableChunk.move(1,0,0);
+        int endChunkX = (pos.getX() + bounds.getX()) >> 4;
+        int endChunkZ = (pos.getZ() + bounds.getZ()) >> 4;
+
+        for(; mutableChunk.getX() < endChunkX; mutableChunk.move(1,0,0)) {
+            for (; mutableChunk.getZ() < endChunkZ; mutableChunk.move(0, 0, 1)) {
+                chunkJobs.computeIfAbsent(
+                        ChunkPos.toLong(mutableChunk.getX(), mutableChunk.getZ()), // Chunk to clear
+                        (chunkLong) -> Collections.singletonList(Pair.of(mutableChunk.getY(), taskToRun)) // task to run at y pos
+                );
+            }
+            mutableChunk.set(mutableChunk.getX(), mutableChunk.getY(), pos.getZ() >> 4); // Set back to start of row
         }
 
-        // Places structure blocks and loads pieces
-        mutableChunk.set((pos.getX() + 16) ^ 15, pos.getY(), pos.getZ());
+        MinecraftServer executor = world.getServer();
+        AtomicInteger completedSections = new AtomicInteger();
+
+        chunkJobs.forEach((key, chunkJobCollection) ->
+            executor.execute(new ServerTask(((MinecraftServerAccessor)executor).lnbtb_getTicks(), () -> {
+                int chunkX = ChunkPos.getPackedX(key);
+                int chunkZ = ChunkPos.getPackedZ(key);
+                WorldChunk chunk = world.getChunk(chunkX, chunkZ);
+
+                // Run the task to clear the chunk
+                chunkJobCollection.forEach(listEntry -> listEntry.getRight().apply(
+                        chunk,
+                        world,
+                        new BlockPos.Mutable(chunkX, listEntry.getLeft(), chunkZ)
+                ));
+
+                // Send changes to client to see
+                chunk.markDirty();
+                ((ServerChunkManager) world.getChunkManager()).threadedAnvilChunkStorage
+                        .getPlayersWatchingChunk(chunk.getPos(), false)
+                        .forEach(s -> s.networkHandler.sendPacket(new ChunkDataS2CPacket(chunk, 65535)));
+
+                // Tell player progress so they know it is working
+                int currentSection = completedSections.get() + 1;
+                completedSections.set(currentSection);
+                player.sendMessage(new TranslatableText("Working: %" + (((float)currentSection / chunkJobs.size()) * 100)), true);
+
+                // Places structure blocks and loads pieces when last task is completed
+                // TODO: make this be threaded as well.
+                if(currentSection == chunkJobs.size()){
+                    generateStructurePieces(world, pos, player, identifiers, columnCount, spacing, mutableChunk);
+                }
+            }))
+        );
+
+        return ActionResult.SUCCESS;
+    }
+
+
+    private void generateStructurePieces(World world, BlockPos pos, PlayerEntity player, List<Identifier> identifiers, int columnCount, int spacing, BlockPos.Mutable mutableChunk) {
+        mutableChunk.set(((pos.getX() >> 4) + 1) << 4, pos.getY(), (pos.getZ() >> 4) << 4);
 
         for(int pieceIndex = 1; pieceIndex <= identifiers.size(); pieceIndex++){
-
-            player.sendMessage(new TranslatableText(" Working making structure: "+identifiers.get(pieceIndex-1)), true);
+            player.sendMessage(new TranslatableText(" Working making structure: "+ identifiers.get(pieceIndex-1)), true);
 
             world.setBlockState(mutableChunk, Blocks.STRUCTURE_BLOCK.getDefaultState().with(StructureBlock.MODE, StructureBlockMode.LOAD), 3);
             BlockEntity be = world.getBlockEntity(mutableChunk);
@@ -115,10 +173,8 @@ public class LoadNbtBlock extends Block {
 
             // Move back to start of row
             if(pieceIndex % columnCount == 0){
-                mutableChunk.move(spacing,0, (-spacing*(columnCount)));
+                mutableChunk.move(spacing,0, (-spacing * columnCount));
             }
         }
-
-        return ActionResult.SUCCESS;
     }
 }
