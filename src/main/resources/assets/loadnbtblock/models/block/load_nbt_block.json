@@ -1,0 +1,4 @@
+{
+  "parent": "block/cube_all",
+  "textures": { "all": "loadnbtblock:block/load_nbt_block" }
+}

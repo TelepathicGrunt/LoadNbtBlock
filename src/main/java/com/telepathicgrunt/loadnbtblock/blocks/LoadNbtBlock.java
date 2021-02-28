@@ -1,6 +1,7 @@
 package com.telepathicgrunt.loadnbtblock.blocks;
 
 import com.telepathicgrunt.loadnbtblock.mixins.MinecraftServerAccessor;
+import com.telepathicgrunt.loadnbtblock.mixins.StructureManagerAccessor;
 import com.telepathicgrunt.loadnbtblock.utils.StructureNbtDataFixer;
 import net.fabricmc.loader.api.FabricLoader;
 import net.minecraft.block.*;
@@ -8,25 +9,35 @@ import net.minecraft.block.entity.BlockEntity;
 import net.minecraft.block.entity.StructureBlockBlockEntity;
 import net.minecraft.block.enums.StructureBlockMode;
 import net.minecraft.entity.player.PlayerEntity;
+import net.minecraft.nbt.CompoundTag;
+import net.minecraft.nbt.ListTag;
+import net.minecraft.nbt.NbtIo;
 import net.minecraft.network.packet.s2c.play.ChunkDataS2CPacket;
+import net.minecraft.resource.Resource;
 import net.minecraft.server.MinecraftServer;
 import net.minecraft.server.ServerTask;
 import net.minecraft.server.world.ServerChunkManager;
 import net.minecraft.server.world.ServerWorld;
 import net.minecraft.text.TranslatableText;
-import net.minecraft.util.ActionResult;
-import net.minecraft.util.Hand;
-import net.minecraft.util.Identifier;
+import net.minecraft.util.*;
 import net.minecraft.util.hit.BlockHitResult;
 import net.minecraft.util.math.BlockPos;
 import net.minecraft.util.math.ChunkPos;
 import net.minecraft.world.World;
 import net.minecraft.world.chunk.Chunk;
+import net.minecraft.world.chunk.ChunkSection;
 import net.minecraft.world.chunk.WorldChunk;
 import org.apache.commons.lang3.tuple.Pair;
 
 import java.io.File;
-import java.util.*;
+import java.io.FileInputStream;
+import java.io.FileNotFoundException;
+import java.io.InputStream;
+import java.nio.file.Path;
+import java.util.ArrayList;
+import java.util.HashMap;
+import java.util.List;
+import java.util.Map;
 import java.util.concurrent.atomic.AtomicInteger;
 
 public class LoadNbtBlock extends Block {
@@ -66,31 +77,46 @@ public class LoadNbtBlock extends Block {
         BlockPos bounds = new BlockPos(spacing * (rowCount+2), spacing, spacing * columnCount);
         chunkJobs.clear();
 
+        Identifier id = new Identifier(com.telepathicgrunt.loadnbtblock.LoadNbtBlock.MODID, "sections/section1.nbt");
+        CompoundTag compoundTag;
+        try {
+            Resource resource = ((StructureManagerAccessor)((ServerWorld) world).getStructureManager()).lnbtb_getField_25189().getResource(id);
+            compoundTag = NbtIo.readCompressed(resource.getInputStream());
+        }
+        catch (Exception e) {
+            e.printStackTrace();
+            return ActionResult.FAIL;
+        }
+        ListTag palette = compoundTag.getList("Palette", 10);
+        long[] blockStates = compoundTag.getLongArray("BlockStates");
+
         // Fill/clear area with structure void
         task<Chunk, World, Integer> taskToRun = (chunkIn, worldIn, yPos) ->
         {
             BlockPos.Mutable mutableInChunk = new BlockPos.Mutable();
             mutableInChunk.set(0, yPos, 0);
-            BlockState stateToUse;
-
-            for (; mutableInChunk.getX() < 16; mutableInChunk.move(1, 0, 0)) {
-                for (; mutableInChunk.getY() < yPos + bounds.getY(); mutableInChunk.move(0, 1, 0)) {
-                    for (; mutableInChunk.getZ() < 16; mutableInChunk.move(0, 0, 1)) {
-
-                        if (mutableInChunk.getY() == yPos)
-                            stateToUse = Blocks.STONE.getDefaultState();
-                        else
-                            stateToUse = Blocks.STRUCTURE_VOID.getDefaultState();
-
-                        chunkIn.setBlockState(
-                                mutableInChunk,
-                                stateToUse,
-                                false);
-                    }
-                    mutableInChunk.set(mutableInChunk.getX(), mutableInChunk.getY(), 0);
-                }
-                mutableInChunk.set(mutableInChunk.getX(), yPos, mutableInChunk.getZ());
-            }
+            ChunkSection[] sections = chunkIn.getSectionArray();
+            sections[1].getContainer().read(palette, blockStates);
+//
+//            BlockState stateToUse;
+//            for (; mutableInChunk.getX() < 16; mutableInChunk.move(1, 0, 0)) {
+//                for (; mutableInChunk.getY() < yPos + bounds.getY(); mutableInChunk.move(0, 1, 0)) {
+//                    for (; mutableInChunk.getZ() < 16; mutableInChunk.move(0, 0, 1)) {
+//
+//                        if (mutableInChunk.getY() == yPos)
+//                            stateToUse = Blocks.STONE.getDefaultState();
+//                        else
+//                            stateToUse = Blocks.STRUCTURE_VOID.getDefaultState();
+//
+//                        chunkIn.setBlockState(
+//                                mutableInChunk,
+//                                stateToUse,
+//                                false);
+//                    }
+//                    mutableInChunk.set(mutableInChunk.getX(), mutableInChunk.getY(), 0);
+//                }
+//                mutableInChunk.set(mutableInChunk.getX(), yPos, mutableInChunk.getZ());
+//            }
         };
 
         BlockPos.Mutable mutableChunk = new BlockPos.Mutable().set(pos.getX() >> 4, pos.getY(), pos.getZ() >> 4);
