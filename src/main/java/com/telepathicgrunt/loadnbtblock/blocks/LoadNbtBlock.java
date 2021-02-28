@@ -20,7 +20,9 @@ import net.minecraft.server.ServerTask;
 import net.minecraft.server.world.ServerChunkManager;
 import net.minecraft.server.world.ServerWorld;
 import net.minecraft.text.TranslatableText;
-import net.minecraft.util.*;
+import net.minecraft.util.ActionResult;
+import net.minecraft.util.Hand;
+import net.minecraft.util.Identifier;
 import net.minecraft.util.hit.BlockHitResult;
 import net.minecraft.util.math.BlockPos;
 import net.minecraft.util.math.ChunkPos;
@@ -31,11 +33,10 @@ import net.minecraft.world.chunk.WorldChunk;
 import org.apache.commons.lang3.tuple.Pair;
 
 import java.io.File;
-import java.io.FileInputStream;
-import java.io.FileNotFoundException;
-import java.io.InputStream;
-import java.nio.file.Path;
-import java.util.*;
+import java.util.ArrayList;
+import java.util.HashMap;
+import java.util.List;
+import java.util.Map;
 import java.util.concurrent.atomic.AtomicInteger;
 
 public class LoadNbtBlock extends Block {
@@ -96,24 +97,22 @@ public class LoadNbtBlock extends Block {
         ListTag palette2 = compoundTag2.getList("Palette", 10);
         long[] blockStates2 = compoundTag2.getLongArray("BlockStates");
 
-        // Fill/clear area with structure void
-        task<Chunk, World, Integer> taskToRun = (chunkIn, worldIn, yPos) ->
-        {
-            BlockPos.Mutable mutableInChunk = new BlockPos.Mutable();
-            mutableInChunk.set(0, yPos, 0);
-            ChunkSection[] sections = chunkIn.getSectionArray();
-            Short zero = 0;
-            Short nonEmptyBlockCount = 256;
+        short zero = 0;
+        short nonEmptyBlockCount = 256;
 
-            ChunkSection newChunkSection = new ChunkSection(-1, nonEmptyBlockCount, zero, zero);
+        // Fill/clear area with structure void
+        task<Chunk, World, Integer> taskToRun = (chunkIn, worldIn, yPos) -> {
+            ChunkSection[] sections = chunkIn.getSectionArray();
+
+            ChunkSection newChunkSection = new ChunkSection(0, nonEmptyBlockCount, zero, zero);
             newChunkSection.getContainer().read(palette1, blockStates1);
             sections[0] = newChunkSection;
 
-            newChunkSection = new ChunkSection(0, nonEmptyBlockCount, zero, zero);
+            newChunkSection = new ChunkSection(1, nonEmptyBlockCount, zero, zero);
             newChunkSection.getContainer().read(palette2, blockStates2);
             sections[1] = newChunkSection;
 
-            newChunkSection = new ChunkSection(1, nonEmptyBlockCount, zero, zero);
+            newChunkSection = new ChunkSection(2, nonEmptyBlockCount, zero, zero);
             newChunkSection.getContainer().read(palette2, blockStates2);
             sections[2] = newChunkSection;
         };
