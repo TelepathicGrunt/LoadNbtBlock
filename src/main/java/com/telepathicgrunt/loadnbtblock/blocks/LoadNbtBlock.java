@@ -10,6 +10,8 @@ import net.minecraft.entity.player.PlayerEntity;
 import net.minecraft.network.packet.s2c.play.ChunkDataS2CPacket;
 import net.minecraft.server.world.ServerChunkManager;
 import net.minecraft.server.world.ServerWorld;
+import net.minecraft.text.LiteralText;
+import net.minecraft.text.Text;
 import net.minecraft.text.TranslatableText;
 import net.minecraft.util.ActionResult;
 import net.minecraft.util.Hand;
@@ -112,8 +114,8 @@ public class LoadNbtBlock extends Block {
                 ((ServerChunkManager) world.getChunkManager()).threadedAnvilChunkStorage
                         .getPlayersWatchingChunk(chunk.getPos(), false)
                         .forEach(s -> s.networkHandler.sendPacket(new ChunkDataS2CPacket(chunk, 65535)));
-
-                player.sendMessage(new TranslatableText("Working: %" +  Math.round(((float)currentSection / maxChunks) * 10000f) / 100f), true);
+                
+                player.sendMessage(new LiteralText("Working: %" +  Math.round(((float)currentSection / maxChunks) * 10000f) / 100f), true);
             }
             mutableChunk.set(mutableChunk.getX(), pos.getY(), pos.getZ() >> 4); // Set back to start of row
         }
