@@ -3,7 +3,10 @@
   "minVersion": "0.8",
   "package": "com.telepathicgrunt.loadnbtblock.mixins",
   "compatibilityLevel": "JAVA_8",
-  "mixins": [],
+  "mixins": [
+    "MinecraftServerAccessor",
+    "StructureManagerAccessor"
+  ],
   "client": [],
   "injectors": {
     "defaultRequire": 1
