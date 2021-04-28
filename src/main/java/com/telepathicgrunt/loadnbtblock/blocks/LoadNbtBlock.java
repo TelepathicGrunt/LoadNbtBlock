@@ -1,7 +1,6 @@
 package com.telepathicgrunt.loadnbtblock.blocks;
 
 import com.telepathicgrunt.loadnbtblock.mixins.MinecraftServerAccessor;
-import com.telepathicgrunt.loadnbtblock.mixins.StructureManagerAccessor;
 import com.telepathicgrunt.loadnbtblock.utils.StructureNbtDataFixer;
 import net.fabricmc.loader.api.FabricLoader;
 import net.minecraft.block.*;
@@ -9,12 +8,7 @@ import net.minecraft.block.entity.BlockEntity;
 import net.minecraft.block.entity.StructureBlockBlockEntity;
 import net.minecraft.block.enums.StructureBlockMode;
 import net.minecraft.entity.player.PlayerEntity;
-import net.minecraft.nbt.CompoundTag;
-import net.minecraft.nbt.ListTag;
-import net.minecraft.nbt.NbtIo;
 import net.minecraft.network.packet.s2c.play.ChunkDataS2CPacket;
-import net.minecraft.resource.Resource;
-import net.minecraft.resource.ResourceManager;
 import net.minecraft.server.MinecraftServer;
 import net.minecraft.server.ServerTask;
 import net.minecraft.server.world.ServerChunkManager;
@@ -78,23 +72,31 @@ public class LoadNbtBlock extends Block {
         chunkJobs.clear();
         BlockState structureVoid = Blocks.STRUCTURE_VOID.getDefaultState();
         BlockState stone = Blocks.STONE.getDefaultState();
+        short nonAir = 255;
+        short zero = 0;
 
         // Fill/clear area with structure void
         task<Chunk, World, Integer> taskToRun = (chunkIn, worldIn, yPos) -> {
             ChunkSection[] sections = chunkIn.getSectionArray();
+            sections[1] = new ChunkSection(16, nonAir, zero, zero);
+            sections[2] = new ChunkSection(32, nonAir, zero, zero);
             PalettedContainer<BlockState> bottomSection = sections[0].getContainer();
             PalettedContainer<BlockState> middleSection = sections[1].getContainer();
             PalettedContainer<BlockState> topSection = sections[2].getContainer();
             for(int x = 0; x < 16; x++){
                 for(int z = 0; z < 16; z++){
-                    for(int y = 0; y < 16; y++){
-                        if(y == 0){
+                    for(int y = 4; y < 16; y++){
+                        if(y == 4){
                             bottomSection.set(x, y, z, stone);
                         }
                         else{
                             bottomSection.set(x, y, z, structureVoid);
                         }
+                    }
+                    for(int y = 0; y < 16; y++){
                         middleSection.set(x, y, z, structureVoid);
+                    }
+                    for(int y = 0; y < 11; y++){
                         topSection.set(x, y, z, structureVoid);
                     }
                 }
@@ -113,7 +115,7 @@ public class LoadNbtBlock extends Block {
                         (chunkLong) -> Pair.of(mutableChunk.getY(), taskToRun) // task to run at y pos
                 );
             }
-            mutableChunk.set(mutableChunk.getX(), mutableChunk.getY(), pos.getZ() >> 4); // Set back to start of row
+            mutableChunk.set(mutableChunk.getX(), pos.getY(), pos.getZ() >> 4); // Set back to start of row
         }
 
         MinecraftServer executor = world.getServer();
@@ -137,7 +139,9 @@ public class LoadNbtBlock extends Block {
                 // Tell player progress so they know it is working
                 int currentSection = completedSections.get() + 1;
                 completedSections.set(currentSection);
-                player.sendMessage(new TranslatableText("Working: %" + (((float)currentSection / chunkJobs.size()) * 100)), true);
+                if(currentSection % 10 == 0){
+                    player.sendMessage(new TranslatableText("Working: %" + (((float)currentSection / chunkJobs.size()) * 100)), true);
+                }
 
                 // Places structure blocks and loads pieces when last task is completed
                 // TODO: make this be threaded as well.
