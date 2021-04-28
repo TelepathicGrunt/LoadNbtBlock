@@ -1,6 +1,5 @@
 package com.telepathicgrunt.loadnbtblock.blocks;
 
-import com.telepathicgrunt.loadnbtblock.mixins.MinecraftServerAccessor;
 import com.telepathicgrunt.loadnbtblock.utils.StructureNbtDataFixer;
 import net.fabricmc.loader.api.FabricLoader;
 import net.minecraft.block.*;
@@ -9,8 +8,6 @@ import net.minecraft.block.entity.StructureBlockBlockEntity;
 import net.minecraft.block.enums.StructureBlockMode;
 import net.minecraft.entity.player.PlayerEntity;
 import net.minecraft.network.packet.s2c.play.ChunkDataS2CPacket;
-import net.minecraft.server.MinecraftServer;
-import net.minecraft.server.ServerTask;
 import net.minecraft.server.world.ServerChunkManager;
 import net.minecraft.server.world.ServerWorld;
 import net.minecraft.text.TranslatableText;
@@ -19,7 +16,6 @@ import net.minecraft.util.Hand;
 import net.minecraft.util.Identifier;
 import net.minecraft.util.hit.BlockHitResult;
 import net.minecraft.util.math.BlockPos;
-import net.minecraft.util.math.ChunkPos;
 import net.minecraft.world.World;
 import net.minecraft.world.chunk.Chunk;
 import net.minecraft.world.chunk.ChunkSection;
@@ -32,7 +28,6 @@ import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
-import java.util.concurrent.atomic.AtomicInteger;
 
 public class LoadNbtBlock extends Block {
 
@@ -69,88 +64,61 @@ public class LoadNbtBlock extends Block {
         int rowCount = (int) Math.max(Math.ceil(identifiers.size()) / columnCount, 1);
         int spacing = 48;
         BlockPos bounds = new BlockPos(spacing * (rowCount+2), spacing, spacing * columnCount);
-        chunkJobs.clear();
+
         BlockState structureVoid = Blocks.STRUCTURE_VOID.getDefaultState();
-        BlockState stone = Blocks.STONE.getDefaultState();
+        BlockState barrier = Blocks.BARRIER.getDefaultState();
         short nonAir = 255;
         short zero = 0;
 
         // Fill/clear area with structure void
-        task<Chunk, World, Integer> taskToRun = (chunkIn, worldIn, yPos) -> {
-            ChunkSection[] sections = chunkIn.getSectionArray();
-            sections[1] = new ChunkSection(16, nonAir, zero, zero);
-            sections[2] = new ChunkSection(32, nonAir, zero, zero);
-            PalettedContainer<BlockState> bottomSection = sections[0].getContainer();
-            PalettedContainer<BlockState> middleSection = sections[1].getContainer();
-            PalettedContainer<BlockState> topSection = sections[2].getContainer();
-            for(int x = 0; x < 16; x++){
-                for(int z = 0; z < 16; z++){
-                    for(int y = 4; y < 16; y++){
-                        if(y == 4){
-                            bottomSection.set(x, y, z, stone);
-                        }
-                        else{
-                            bottomSection.set(x, y, z, structureVoid);
-                        }
-                    }
-                    for(int y = 0; y < 16; y++){
-                        middleSection.set(x, y, z, structureVoid);
-                    }
-                    for(int y = 0; y < 11; y++){
-                        topSection.set(x, y, z, structureVoid);
-                    }
-                }
-            }
-        };
-
         BlockPos.Mutable mutableChunk = new BlockPos.Mutable().set(pos.getX() >> 4, pos.getY(), pos.getZ() >> 4);
         mutableChunk.move(1,0,0);
         int endChunkX = (pos.getX() + bounds.getX()) >> 4;
         int endChunkZ = (pos.getZ() + bounds.getZ()) >> 4;
 
+        int maxChunks = (endChunkX - mutableChunk.getX()) * (endChunkZ - mutableChunk.getZ());
+        int currentSection = 0;
         for(; mutableChunk.getX() < endChunkX; mutableChunk.move(1,0,0)) {
             for (; mutableChunk.getZ() < endChunkZ; mutableChunk.move(0, 0, 1)) {
-                chunkJobs.computeIfAbsent(
-                        ChunkPos.toLong(mutableChunk.getX(), mutableChunk.getZ()), // Chunk to clear
-                        (chunkLong) -> Pair.of(mutableChunk.getY(), taskToRun) // task to run at y pos
-                );
+
+                WorldChunk chunk = world.getChunk(mutableChunk.getX(), mutableChunk.getZ());
+                ChunkSection[] sections = chunk.getSectionArray();
+                sections[1] = new ChunkSection(16, nonAir, zero, zero);
+                sections[2] = new ChunkSection(32, nonAir, zero, zero);
+                PalettedContainer<BlockState> bottomSection = sections[0].getContainer();
+                PalettedContainer<BlockState> middleSection = sections[1].getContainer();
+                PalettedContainer<BlockState> topSection = sections[2].getContainer();
+                for(int x = 0; x < 16; x++){
+                    for(int z = 0; z < 16; z++){
+                        for(int y = 4; y < 16; y++){
+                            if(y == 4){
+                                bottomSection.set(x, y, z, barrier);
+                            }
+                            else{
+                                bottomSection.set(x, y, z, structureVoid);
+                            }
+                        }
+                        for(int y = 0; y < 16; y++){
+                            middleSection.set(x, y, z, structureVoid);
+                            topSection.set(x, y, z, structureVoid);
+                        }
+                    }
+                }
+
+                currentSection++;
+                chunk.markDirty();
+
+                // Send changes to client to see
+                ((ServerChunkManager) world.getChunkManager()).threadedAnvilChunkStorage
+                        .getPlayersWatchingChunk(chunk.getPos(), false)
+                        .forEach(s -> s.networkHandler.sendPacket(new ChunkDataS2CPacket(chunk, 65535)));
+
+                player.sendMessage(new TranslatableText("Working: %" +  Math.round(((float)currentSection / maxChunks) * 10000f) / 100f), true);
             }
             mutableChunk.set(mutableChunk.getX(), pos.getY(), pos.getZ() >> 4); // Set back to start of row
         }
 
-        MinecraftServer executor = world.getServer();
-        AtomicInteger completedSections = new AtomicInteger();
-
-        chunkJobs.forEach((key, chunkJobCollection) ->
-            executor.execute(new ServerTask(((MinecraftServerAccessor)executor).lnbtb_getTicks(), () -> {
-                int chunkX = ChunkPos.getPackedX(key);
-                int chunkZ = ChunkPos.getPackedZ(key);
-                WorldChunk chunkToClear = world.getChunk(chunkX, chunkZ);
-
-                // Run the task to clear the chunk
-                chunkJobCollection.getRight().apply(chunkToClear, world, chunkJobCollection.getLeft());
-
-                // Send changes to client to see
-                chunkToClear.markDirty();
-                ((ServerChunkManager) world.getChunkManager()).threadedAnvilChunkStorage
-                        .getPlayersWatchingChunk(chunkToClear.getPos(), false)
-                        .forEach(s -> s.networkHandler.sendPacket(new ChunkDataS2CPacket(chunkToClear, 65535)));
-
-                // Tell player progress so they know it is working
-                int currentSection = completedSections.get() + 1;
-                completedSections.set(currentSection);
-                if(currentSection % 10 == 0){
-                    player.sendMessage(new TranslatableText("Working: %" + (((float)currentSection / chunkJobs.size()) * 100)), true);
-                }
-
-                // Places structure blocks and loads pieces when last task is completed
-                // TODO: make this be threaded as well.
-                if(currentSection == chunkJobs.size()){
-                    generateStructurePieces(world, pos, player, identifiers, columnCount, spacing, mutableChunk);
-                }
-            }))
-        );
-
+        generateStructurePieces(world, pos, player, identifiers, columnCount, spacing, mutableChunk);
         return ActionResult.SUCCESS;
     }
 
