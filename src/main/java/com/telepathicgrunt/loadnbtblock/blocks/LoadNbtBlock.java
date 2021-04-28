@@ -29,6 +29,7 @@ import net.minecraft.util.math.ChunkPos;
 import net.minecraft.world.World;
 import net.minecraft.world.chunk.Chunk;
 import net.minecraft.world.chunk.ChunkSection;
+import net.minecraft.world.chunk.PalettedContainer;
 import net.minecraft.world.chunk.WorldChunk;
 import org.apache.commons.lang3.tuple.Pair;
 
@@ -75,46 +76,29 @@ public class LoadNbtBlock extends Block {
         int spacing = 48;
         BlockPos bounds = new BlockPos(spacing * (rowCount+2), spacing, spacing * columnCount);
         chunkJobs.clear();
-
-        Identifier id = new Identifier(com.telepathicgrunt.loadnbtblock.LoadNbtBlock.MODID, "sections/section1.nbt");
-        Identifier id2 = new Identifier(com.telepathicgrunt.loadnbtblock.LoadNbtBlock.MODID, "sections/section2.nbt");
-        CompoundTag compoundTag;
-        CompoundTag compoundTag2;
-        try {
-            ResourceManager resourceManager = ((StructureManagerAccessor)((ServerWorld) world).getStructureManager()).lnbtb_getField_25189();
-            Resource resource = resourceManager.getResource(id);
-            compoundTag = NbtIo.readCompressed(resource.getInputStream());
-
-            resource = resourceManager.getResource(id2);
-            compoundTag2 = NbtIo.readCompressed(resource.getInputStream());
-        }
-        catch (Exception e) {
-            e.printStackTrace();
-            return ActionResult.FAIL;
-        }
-        ListTag palette1 = compoundTag.getList("Palette", 10);
-        long[] blockStates1 = compoundTag.getLongArray("BlockStates");
-        ListTag palette2 = compoundTag2.getList("Palette", 10);
-        long[] blockStates2 = compoundTag2.getLongArray("BlockStates");
-
-        short zero = 0;
-        short nonEmptyBlockCount = 256;
+        BlockState structureVoid = Blocks.STRUCTURE_VOID.getDefaultState();
+        BlockState stone = Blocks.STONE.getDefaultState();
 
         // Fill/clear area with structure void
         task<Chunk, World, Integer> taskToRun = (chunkIn, worldIn, yPos) -> {
             ChunkSection[] sections = chunkIn.getSectionArray();
-
-            ChunkSection newChunkSection = new ChunkSection(0, nonEmptyBlockCount, zero, zero);
-            newChunkSection.getContainer().read(palette1, blockStates1);
-            sections[0] = newChunkSection;
-
-            newChunkSection = new ChunkSection(1, nonEmptyBlockCount, zero, zero);
-            newChunkSection.getContainer().read(palette2, blockStates2);
-            sections[1] = newChunkSection;
-
-            newChunkSection = new ChunkSection(2, nonEmptyBlockCount, zero, zero);
-            newChunkSection.getContainer().read(palette2, blockStates2);
-            sections[2] = newChunkSection;
+            PalettedContainer<BlockState> bottomSection = sections[0].getContainer();
+            PalettedContainer<BlockState> middleSection = sections[1].getContainer();
+            PalettedContainer<BlockState> topSection = sections[2].getContainer();
+            for(int x = 0; x < 16; x++){
+                for(int z = 0; z < 16; z++){
+                    for(int y = 0; y < 16; y++){
+                        if(y == 0){
+                            bottomSection.set(x, y, z, stone);
+                        }
+                        else{
+                            bottomSection.set(x, y, z, structureVoid);
+                        }
+                        middleSection.set(x, y, z, structureVoid);
+                        topSection.set(x, y, z, structureVoid);
+                    }
+                }
+            }
         };
 
         BlockPos.Mutable mutableChunk = new BlockPos.Mutable().set(pos.getX() >> 4, pos.getY(), pos.getZ() >> 4);
