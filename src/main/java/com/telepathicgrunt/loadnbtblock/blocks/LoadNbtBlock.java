@@ -114,7 +114,7 @@ public class LoadNbtBlock extends Block {
                 ((ServerChunkManager) world.getChunkManager()).threadedAnvilChunkStorage
                         .getPlayersWatchingChunk(chunk.getPos(), false)
                         .forEach(s -> s.networkHandler.sendPacket(new ChunkDataS2CPacket(chunk, 65535)));
-                
+
                 player.sendMessage(new LiteralText("Working: %" +  Math.round(((float)currentSection / maxChunks) * 10000f) / 100f), true);
             }
             mutableChunk.set(mutableChunk.getX(), pos.getY(), pos.getZ() >> 4); // Set back to start of row
