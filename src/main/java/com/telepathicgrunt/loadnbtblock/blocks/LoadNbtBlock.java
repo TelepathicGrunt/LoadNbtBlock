@@ -2,11 +2,7 @@ package com.telepathicgrunt.loadnbtblock.blocks;
 
 import com.telepathicgrunt.loadnbtblock.utils.StructureNbtDataFixer;
 import net.fabricmc.loader.api.FabricLoader;
-import net.minecraft.block.Block;
-import net.minecraft.block.BlockState;
-import net.minecraft.block.Blocks;
-import net.minecraft.block.Material;
-import net.minecraft.block.StructureBlock;
+import net.minecraft.block.*;
 import net.minecraft.block.entity.BlockEntity;
 import net.minecraft.block.entity.StructureBlockBlockEntity;
 import net.minecraft.block.enums.StructureBlockMode;
@@ -15,9 +11,9 @@ import net.minecraft.network.packet.s2c.play.ChunkDataS2CPacket;
 import net.minecraft.server.world.ServerChunkManager;
 import net.minecraft.server.world.ServerWorld;
 import net.minecraft.text.LiteralText;
+import net.minecraft.text.Text;
 import net.minecraft.text.TranslatableText;
 import net.minecraft.util.ActionResult;
-import net.minecraft.util.DyeColor;
 import net.minecraft.util.Hand;
 import net.minecraft.util.Identifier;
 import net.minecraft.util.hit.BlockHitResult;
@@ -38,7 +34,7 @@ import java.util.Map;
 public class LoadNbtBlock extends Block {
 
     public LoadNbtBlock() {
-        super(Settings.of(Material.METAL, DyeColor.LIGHT_GRAY).requiresTool().strength(-1.0F, 3600000.0F).dropsNothing());
+        super(Settings.of(Material.METAL, MaterialColor.LIGHT_GRAY).requiresTool().strength(-1.0F, 3600000.0F).dropsNothing());
     }
 
     // source: https://github.com/williambl/explosivessquared/blob/master/src/main/kotlin/com/williambl/explosivessquared/util/actions/MassBlockActionManager.kt
@@ -117,7 +113,7 @@ public class LoadNbtBlock extends Block {
                 // Send changes to client to see
                 ((ServerChunkManager) world.getChunkManager()).threadedAnvilChunkStorage
                         .getPlayersWatchingChunk(chunk.getPos(), false)
-                        .forEach(s -> s.networkHandler.sendPacket(new ChunkDataS2CPacket(chunk)));
+                        .forEach(s -> s.networkHandler.sendPacket(new ChunkDataS2CPacket(chunk, 65535)));
 
                 player.sendMessage(new LiteralText("Working: %" +  Math.round(((float)currentSection / maxChunks) * 10000f) / 100f), true);
             }
