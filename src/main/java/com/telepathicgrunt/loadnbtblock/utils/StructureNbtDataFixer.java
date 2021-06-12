@@ -2,12 +2,11 @@ package com.telepathicgrunt.loadnbtblock.utils;
 
 import net.minecraft.datafixer.DataFixTypes;
 import net.minecraft.datafixer.Schemas;
-import net.minecraft.nbt.CompoundTag;
+import net.minecraft.nbt.NbtCompound;
 import net.minecraft.nbt.NbtHelper;
 import net.minecraft.nbt.NbtIo;
 
 import java.io.*;
-import java.util.ArrayList;
 import java.util.List;
 
 
@@ -41,13 +40,13 @@ public class StructureNbtDataFixer {
             resultingFile.getParentFile().mkdirs();
             OutputStream outputStream = new FileOutputStream(resultingFile);
 
-            CompoundTag newNBT = updateNbtCompound(inputStream);
+            NbtCompound newNBT = updateNbtCompound(inputStream);
             NbtIo.writeCompressed(newNBT, outputStream);
         }
     }
 
-    public static CompoundTag updateNbtCompound(InputStream structureInputStream) throws IOException {
-        CompoundTag compoundTag = NbtIo.readCompressed(structureInputStream);
+    public static NbtCompound updateNbtCompound(InputStream structureInputStream) throws IOException {
+        NbtCompound compoundTag = NbtIo.readCompressed(structureInputStream);
         return NbtHelper.update(Schemas.getFixer(), DataFixTypes.STRUCTURE, compoundTag, compoundTag.getInt("DataVersion"), compoundTag.getInt("DataVersion"));
     }
 }
