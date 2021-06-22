@@ -40,10 +40,10 @@ public class LoadNbtBlock extends Block {
     }
 
     public ActionResult onUse(BlockState state, World world, BlockPos pos, PlayerEntity player, Hand hand, BlockHitResult hit) {
-        if(!(world instanceof ServerWorld) || hand == Hand.MAIN_HAND) return ActionResult.PASS;
+        if (!(world instanceof ServerWorld) || hand == Hand.OFF_HAND || (!player.getStackInHand(Hand.MAIN_HAND).isEmpty() && !player.getStackInHand(Hand.MAIN_HAND).isOf(LoadNbtBlockInit.LOAD_NBT_ITEM))) return ActionResult.PASS;
 
         String mainPath = FabricLoader.getInstance().getGameDir().getParent().getParent().toString();
-        String resourcePath = mainPath+"\\src\\main\\resources\\data";
+        String resourcePath = mainPath + "\\src\\main\\resources\\data";
 
         player.sendMessage(new TranslatableText(" Working.... "), true);
 
@@ -51,8 +51,8 @@ public class LoadNbtBlock extends Block {
         List<File> files = new ArrayList<>();
         List<Identifier> identifiers = new ArrayList<>();
         StructureNbtDataFixer.setAllNbtFilesToList(resourcePath, files);
-        for(File file : files){
-            String modifiedFileName = file.getAbsolutePath().replace(resourcePath+"\\","").replace("\\structures\\",":").replace(".nbt","").replace('\\','/');
+        for (File file : files) {
+            String modifiedFileName = file.getAbsolutePath().replace(resourcePath + "\\", "").replace("\\structures\\", ":").replace(".nbt", "").replace('\\', '/');
             identifiers.add(new Identifier(modifiedFileName));
         }
 
@@ -60,14 +60,14 @@ public class LoadNbtBlock extends Block {
         int columnCount = 13;
         int rowCount = (int) Math.max(Math.ceil(identifiers.size()) / columnCount, 1);
         int spacing = 48;
-        BlockPos bounds = new BlockPos(spacing * (rowCount+2), spacing, spacing * columnCount);
+        BlockPos bounds = new BlockPos(spacing * (rowCount + 2), spacing, spacing * columnCount);
 
         BlockState structureVoid = Blocks.STRUCTURE_VOID.getDefaultState();
         BlockState barrier = Blocks.BARRIER.getDefaultState();
 
         // Fill/clear area with structure void
         BlockPos.Mutable mutableChunk = new BlockPos.Mutable().set(pos.getX() >> 4, pos.getY(), pos.getZ() >> 4);
-        mutableChunk.move(1,0,0);
+        mutableChunk.move(1, 0, 0);
         int endChunkX = (pos.getX() + bounds.getX()) >> 4;
         int endChunkZ = (pos.getZ() + bounds.getZ()) >> 4;
 
@@ -75,57 +75,61 @@ public class LoadNbtBlock extends Block {
         int currentChunkCount = 0;
         BlockPos.Mutable mutablePos = new BlockPos.Mutable();
         BlockPos.Mutable temp = new BlockPos.Mutable();
-        List<Chunk> chunks = new ArrayList<>();
-        for(; mutableChunk.getX() < endChunkX; mutableChunk.move(1,0,0)) {
-            for (; mutableChunk.getZ() < endChunkZ; mutableChunk.move(0, 0, 1)) {
-                chunks.add(world.getChunk(mutableChunk.getX(), mutableChunk.getZ(), ChunkStatus.FULL, true));
-                currentChunkCount++;
-                player.sendMessage(new LiteralText("Working part 1: %" +  Math.round(((float)currentChunkCount / maxChunks) * 10000f) / 100f), true);
-            }
-            mutableChunk.set(mutableChunk.getX(), pos.getY(), pos.getZ() >> 4); // Set back to start of row
-        }
 
-        mutableChunk = new BlockPos.Mutable().set(pos.getX() >> 4, pos.getY(), pos.getZ() >> 4);
-        mutableChunk.move(1,0,0);
-        currentChunkCount = 0;
-        for(; mutableChunk.getX() < endChunkX; mutableChunk.move(1,0,0)) {
-            for (; mutableChunk.getZ() < endChunkZ; mutableChunk.move(0, 0, 1)) {
-
-                Chunk chunk = chunks.get(currentChunkCount);
-                temp.set(mutableChunk.getX() << 4, 0, mutableChunk.getZ() << 4);
-                if(chunk == null){
-                    continue;
+        if(player.getStackInHand(Hand.MAIN_HAND).isEmpty()){
+            List<Chunk> chunks = new ArrayList<>();
+            for (; mutableChunk.getX() < endChunkX; mutableChunk.move(1, 0, 0)) {
+                for (; mutableChunk.getZ() < endChunkZ; mutableChunk.move(0, 0, 1)) {
+                    chunks.add(world.getChunk(mutableChunk.getX(), mutableChunk.getZ(), ChunkStatus.FULL, true));
+                    currentChunkCount++;
+                    player.sendMessage(new LiteralText("Working part 1: %" + Math.round(((float) currentChunkCount / maxChunks) * 10000f) / 100f), true);
                 }
-                for(int x = 0; x < 16; x++){
-                    for(int z = 0; z < 16; z++){
-                        for(int y = 4; y < 52; y++){
-                            mutablePos.set(temp).move(x, y, z);
-                            if(y == 4){
-                                chunk.setBlockState(mutablePos, barrier, false);
-                            }
-                            else{
-                                chunk.setBlockState(mutablePos, structureVoid, false);
+                mutableChunk.set(mutableChunk.getX(), pos.getY(), pos.getZ() >> 4); // Set back to start of row
+            }
+
+            mutableChunk = new BlockPos.Mutable().set(pos.getX() >> 4, pos.getY(), pos.getZ() >> 4);
+            mutableChunk.move(1, 0, 0);
+            currentChunkCount = 0;
+            for (; mutableChunk.getX() < endChunkX; mutableChunk.move(1, 0, 0)) {
+                for (; mutableChunk.getZ() < endChunkZ; mutableChunk.move(0, 0, 1)) {
+
+                    Chunk chunk = chunks.get(currentChunkCount);
+                    temp.set(mutableChunk.getX() << 4, 0, mutableChunk.getZ() << 4);
+                    if (chunk == null) {
+                        continue;
+                    }
+                    for (int x = 0; x < 16; x++) {
+                        for (int z = 0; z < 16; z++) {
+                            for (int y = 4; y < 52; y++) {
+                                mutablePos.set(temp).move(x, y, z);
+                                if (y == 4) {
+                                    chunk.setBlockState(mutablePos, barrier, false);
+                                } else {
+                                    chunk.setBlockState(mutablePos, structureVoid, false);
+                                }
                             }
                         }
                     }
-                }
 
-                currentChunkCount++;
-                if(chunk instanceof WorldChunk worldChunk){
-                    worldChunk.markDirty();
+                    currentChunkCount++;
+                    if (chunk instanceof WorldChunk worldChunk) {
+                        worldChunk.markDirty();
 
-                    // Send changes to client to see
-                    ((ServerChunkManager) world.getChunkManager()).threadedAnvilChunkStorage
-                            .getPlayersWatchingChunk(chunk.getPos(), false)
-                            .forEach(s -> s.networkHandler.sendPacket(new ChunkDataS2CPacket(worldChunk)));
+                        // Send changes to client to see
+                        ((ServerChunkManager) world.getChunkManager()).threadedAnvilChunkStorage
+                                .getPlayersWatchingChunk(chunk.getPos(), false)
+                                .forEach(s -> s.networkHandler.sendPacket(new ChunkDataS2CPacket(worldChunk)));
+                    }
+                    player.sendMessage(new LiteralText("Working part 2: %" + Math.round(((float) currentChunkCount / maxChunks) * 10000f) / 100f), true);
                 }
-                player.sendMessage(new LiteralText("Working part 2: %" +  Math.round(((float)currentChunkCount / maxChunks) * 10000f) / 100f), true);
+                mutableChunk.set(mutableChunk.getX(), pos.getY(), pos.getZ() >> 4); // Set back to start of row
             }
-            mutableChunk.set(mutableChunk.getX(), pos.getY(), pos.getZ() >> 4); // Set back to start of row
         }
 
-        generateStructurePieces(world, pos, player, identifiers, columnCount, spacing, mutableChunk);
-        return ActionResult.SUCCESS;
+        if(player.getStackInHand(Hand.MAIN_HAND).isOf(LoadNbtBlockInit.LOAD_NBT_ITEM)){
+            generateStructurePieces(world, pos, player, identifiers, columnCount, spacing, mutableChunk);
+        }
+        return ActionResult.FAIL;
     }
 
 
