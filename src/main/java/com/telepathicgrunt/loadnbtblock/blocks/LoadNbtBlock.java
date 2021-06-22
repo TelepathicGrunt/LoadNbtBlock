@@ -23,7 +23,9 @@ import net.minecraft.util.Identifier;
 import net.minecraft.util.hit.BlockHitResult;
 import net.minecraft.util.math.BlockPos;
 import net.minecraft.world.World;
+import net.minecraft.world.chunk.Chunk;
 import net.minecraft.world.chunk.ChunkSection;
+import net.minecraft.world.chunk.ChunkStatus;
 import net.minecraft.world.chunk.PalettedContainer;
 import net.minecraft.world.chunk.WorldChunk;
 
@@ -72,43 +74,39 @@ public class LoadNbtBlock extends Block {
         int endChunkZ = (pos.getZ() + bounds.getZ()) >> 4;
 
         int maxChunks = (endChunkX - mutableChunk.getX()) * (endChunkZ - mutableChunk.getZ());
-        int currentSection = 0;
+        int currentChunkCount = 0;
+        BlockPos.Mutable mutablePos = new BlockPos.Mutable();
         for(; mutableChunk.getX() < endChunkX; mutableChunk.move(1,0,0)) {
             for (; mutableChunk.getZ() < endChunkZ; mutableChunk.move(0, 0, 1)) {
 
-                WorldChunk chunk = world.getChunk(mutableChunk.getX(), mutableChunk.getZ());
-                ChunkSection[] sections = chunk.getSectionArray();
-                sections[1] = new ChunkSection(16, nonAir, zero, zero);
-                sections[2] = new ChunkSection(32, nonAir, zero, zero);
-                PalettedContainer<BlockState> bottomSection = sections[0].getContainer();
-                PalettedContainer<BlockState> middleSection = sections[1].getContainer();
-                PalettedContainer<BlockState> topSection = sections[2].getContainer();
+                Chunk chunk = world.getChunk(mutableChunk.getX(), mutableChunk.getZ(), ChunkStatus.FULL, true);
+                if(chunk == null){
+                    continue;
+                }
                 for(int x = 0; x < 16; x++){
                     for(int z = 0; z < 16; z++){
-                        for(int y = 4; y < 16; y++){
+                        for(int y = 4; y < 52; y++){
+                            mutablePos.set(x, y, z);
                             if(y == 4){
-                                bottomSection.set(x, y, z, barrier);
+                                chunk.setBlockState(mutablePos, barrier, false);
                             }
                             else{
-                                bottomSection.set(x, y, z, structureVoid);
+                                chunk.setBlockState(mutablePos, structureVoid, false);
                             }
-                        }
-                        for(int y = 0; y < 16; y++){
-                            middleSection.set(x, y, z, structureVoid);
-                            topSection.set(x, y, z, structureVoid);
                         }
                     }
                 }
 
-                currentSection++;
-                chunk.markDirty();
+                currentChunkCount++;
 
                 // Send changes to client to see
-                ((ServerChunkManager) world.getChunkManager()).threadedAnvilChunkStorage
-                        .getPlayersWatchingChunk(chunk.getPos(), false)
-                        .forEach(s -> s.networkHandler.sendPacket(new ChunkDataS2CPacket(chunk)));
+                if(chunk instanceof WorldChunk worldChunk){
+                    ((ServerChunkManager) world.getChunkManager()).threadedAnvilChunkStorage
+                            .getPlayersWatchingChunk(chunk.getPos(), false)
+                            .forEach(s -> s.networkHandler.sendPacket(new ChunkDataS2CPacket(worldChunk)));
+                }
 
-                player.sendMessage(new LiteralText("Working: %" +  Math.round(((float)currentSection / maxChunks) * 10000f) / 100f), true);
+                player.sendMessage(new LiteralText("Working: %" +  Math.round(((float)currentChunkCount / maxChunks) * 10000f) / 100f), true);
             }
             mutableChunk.set(mutableChunk.getX(), pos.getY(), pos.getZ() >> 4); // Set back to start of row
         }
