@@ -1,5 +1,5 @@
 {
   "variants": {
-    "": { "model": "loadnbtblock:block/load_nbt_block" }
+    "": { "model": "load_nbt_block:block/load_nbt_block" }
   }
 }

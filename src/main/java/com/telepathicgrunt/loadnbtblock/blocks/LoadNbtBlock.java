@@ -23,30 +23,19 @@ import net.minecraft.util.Identifier;
 import net.minecraft.util.hit.BlockHitResult;
 import net.minecraft.util.math.BlockPos;
 import net.minecraft.world.World;
-import net.minecraft.world.chunk.Chunk;
 import net.minecraft.world.chunk.ChunkSection;
 import net.minecraft.world.chunk.PalettedContainer;
 import net.minecraft.world.chunk.WorldChunk;
-import org.apache.commons.lang3.tuple.Pair;
 
 import java.io.File;
 import java.util.ArrayList;
-import java.util.HashMap;
 import java.util.List;
-import java.util.Map;
 
 public class LoadNbtBlock extends Block {
 
     public LoadNbtBlock() {
         super(Settings.of(Material.METAL, DyeColor.LIGHT_GRAY).requiresTool().strength(-1.0F, 3600000.0F).dropsNothing());
     }
-
-    // source: https://github.com/williambl/explosivessquared/blob/master/src/main/kotlin/com/williambl/explosivessquared/util/actions/MassBlockActionManager.kt
-    @FunctionalInterface
-    interface task<One, Two, Three> {
-        void apply(One one, Two two, Three three);
-    }
-    private final Map<Long, Pair<Integer, task<Chunk, World, Integer>>> chunkJobs = new HashMap<>();
 
     public ActionResult onUse(BlockState state, World world, BlockPos pos, PlayerEntity player, Hand hand, BlockHitResult hit) {
         if(!(world instanceof ServerWorld) || hand == Hand.MAIN_HAND) return ActionResult.PASS;
@@ -137,8 +126,7 @@ public class LoadNbtBlock extends Block {
 
             world.setBlockState(mutableChunk, Blocks.STRUCTURE_BLOCK.getDefaultState().with(StructureBlock.MODE, StructureBlockMode.LOAD), 3);
             BlockEntity be = world.getBlockEntity(mutableChunk);
-            if(be instanceof StructureBlockBlockEntity){
-                StructureBlockBlockEntity structureBlockBlockEntity = (StructureBlockBlockEntity)be;
+            if(be instanceof StructureBlockBlockEntity structureBlockBlockEntity){
                 structureBlockBlockEntity.setStructureName(identifiers.get(pieceIndex-1)); // set identifier
 
                 structureBlockBlockEntity.setMode(StructureBlockMode.LOAD);

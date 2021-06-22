@@ -1,9 +1,9 @@
 {
     "schemaVersion": 1,
-    "id": "loadnbtblock",
+    "id": "load_nbt_block",
     "version": "$version",
 
-    "name": "loadnbtblock",
+    "name": "load_nbt_block",
     "description": "",
     "authors": [
         "TelepathicGrunt"
@@ -19,11 +19,11 @@
     "environment": "*",
     "entrypoints": {
         "main": [
-            "com.telepathicgrunt.loadnbtblock.LoadNbtBlock"
+            "com.telepathicgrunt.loadnbtblock.LoadNbtBlockMain"
         ]
     },
     "mixins": [
-        "loadnbtblock.mixins.json"
+        "load_nbt_block.mixins.json"
     ],
 
     "depends": {
