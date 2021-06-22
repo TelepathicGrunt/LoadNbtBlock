@@ -74,26 +74,32 @@ public class LoadNbtBlock extends Block {
         int maxChunks = (endChunkX - mutableChunk.getX()) * (endChunkZ - mutableChunk.getZ());
         int currentChunkCount = 0;
         BlockPos.Mutable mutablePos = new BlockPos.Mutable();
+        BlockPos.Mutable temp = new BlockPos.Mutable();
+        List<Chunk> chunks = new ArrayList<>();
         for(; mutableChunk.getX() < endChunkX; mutableChunk.move(1,0,0)) {
             for (; mutableChunk.getZ() < endChunkZ; mutableChunk.move(0, 0, 1)) {
-                world.getChunk(mutableChunk.getX(), mutableChunk.getZ(), ChunkStatus.FULL, true);
+                chunks.add(world.getChunk(mutableChunk.getX(), mutableChunk.getZ(), ChunkStatus.FULL, true));
                 currentChunkCount++;
                 player.sendMessage(new LiteralText("Working part 1: %" +  Math.round(((float)currentChunkCount / maxChunks) * 10000f) / 100f), true);
             }
             mutableChunk.set(mutableChunk.getX(), pos.getY(), pos.getZ() >> 4); // Set back to start of row
         }
+
+        mutableChunk = new BlockPos.Mutable().set(pos.getX() >> 4, pos.getY(), pos.getZ() >> 4);
+        mutableChunk.move(1,0,0);
         currentChunkCount = 0;
         for(; mutableChunk.getX() < endChunkX; mutableChunk.move(1,0,0)) {
             for (; mutableChunk.getZ() < endChunkZ; mutableChunk.move(0, 0, 1)) {
 
-                WorldChunk chunk = world.getChunk(mutableChunk.getX(), mutableChunk.getZ());
+                Chunk chunk = chunks.get(currentChunkCount);
+                temp.set(mutableChunk.getX() << 4, 0, mutableChunk.getZ() << 4);
                 if(chunk == null){
                     continue;
                 }
                 for(int x = 0; x < 16; x++){
                     for(int z = 0; z < 16; z++){
                         for(int y = 4; y < 52; y++){
-                            mutablePos.set(x, y, z);
+                            mutablePos.set(temp).move(x, y, z);
                             if(y == 4){
                                 chunk.setBlockState(mutablePos, barrier, false);
                             }
@@ -105,12 +111,14 @@ public class LoadNbtBlock extends Block {
                 }
 
                 currentChunkCount++;
+                if(chunk instanceof WorldChunk worldChunk){
+                    worldChunk.markDirty();
 
-                // Send changes to client to see
-                ((ServerChunkManager) world.getChunkManager()).threadedAnvilChunkStorage
-                        .getPlayersWatchingChunk(chunk.getPos(), false)
-                        .forEach(s -> s.networkHandler.sendPacket(new ChunkDataS2CPacket(chunk)));
-
+                    // Send changes to client to see
+                    ((ServerChunkManager) world.getChunkManager()).threadedAnvilChunkStorage
+                            .getPlayersWatchingChunk(chunk.getPos(), false)
+                            .forEach(s -> s.networkHandler.sendPacket(new ChunkDataS2CPacket(worldChunk)));
+                }
                 player.sendMessage(new LiteralText("Working part 2: %" +  Math.round(((float)currentChunkCount / maxChunks) * 10000f) / 100f), true);
             }
             mutableChunk.set(mutableChunk.getX(), pos.getY(), pos.getZ() >> 4); // Set back to start of row
