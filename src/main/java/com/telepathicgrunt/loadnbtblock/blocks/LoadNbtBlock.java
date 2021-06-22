@@ -64,8 +64,6 @@ public class LoadNbtBlock extends Block {
 
         BlockState structureVoid = Blocks.STRUCTURE_VOID.getDefaultState();
         BlockState barrier = Blocks.BARRIER.getDefaultState();
-        short nonAir = 255;
-        short zero = 0;
 
         // Fill/clear area with structure void
         BlockPos.Mutable mutableChunk = new BlockPos.Mutable().set(pos.getX() >> 4, pos.getY(), pos.getZ() >> 4);
@@ -78,8 +76,17 @@ public class LoadNbtBlock extends Block {
         BlockPos.Mutable mutablePos = new BlockPos.Mutable();
         for(; mutableChunk.getX() < endChunkX; mutableChunk.move(1,0,0)) {
             for (; mutableChunk.getZ() < endChunkZ; mutableChunk.move(0, 0, 1)) {
+                world.getChunk(mutableChunk.getX(), mutableChunk.getZ(), ChunkStatus.FULL, true);
+                currentChunkCount++;
+                player.sendMessage(new LiteralText("Working part 1: %" +  Math.round(((float)currentChunkCount / maxChunks) * 10000f) / 100f), true);
+            }
+            mutableChunk.set(mutableChunk.getX(), pos.getY(), pos.getZ() >> 4); // Set back to start of row
+        }
+        currentChunkCount = 0;
+        for(; mutableChunk.getX() < endChunkX; mutableChunk.move(1,0,0)) {
+            for (; mutableChunk.getZ() < endChunkZ; mutableChunk.move(0, 0, 1)) {
 
-                Chunk chunk = world.getChunk(mutableChunk.getX(), mutableChunk.getZ(), ChunkStatus.FULL, true);
+                WorldChunk chunk = world.getChunk(mutableChunk.getX(), mutableChunk.getZ());
                 if(chunk == null){
                     continue;
                 }
@@ -100,13 +107,11 @@ public class LoadNbtBlock extends Block {
                 currentChunkCount++;
 
                 // Send changes to client to see
-                if(chunk instanceof WorldChunk worldChunk){
-                    ((ServerChunkManager) world.getChunkManager()).threadedAnvilChunkStorage
-                            .getPlayersWatchingChunk(chunk.getPos(), false)
-                            .forEach(s -> s.networkHandler.sendPacket(new ChunkDataS2CPacket(worldChunk)));
-                }
+                ((ServerChunkManager) world.getChunkManager()).threadedAnvilChunkStorage
+                        .getPlayersWatchingChunk(chunk.getPos(), false)
+                        .forEach(s -> s.networkHandler.sendPacket(new ChunkDataS2CPacket(chunk)));
 
-                player.sendMessage(new LiteralText("Working: %" +  Math.round(((float)currentChunkCount / maxChunks) * 10000f) / 100f), true);
+                player.sendMessage(new LiteralText("Working part 2: %" +  Math.round(((float)currentChunkCount / maxChunks) * 10000f) / 100f), true);
             }
             mutableChunk.set(mutableChunk.getX(), pos.getY(), pos.getZ() >> 4); // Set back to start of row
         }
