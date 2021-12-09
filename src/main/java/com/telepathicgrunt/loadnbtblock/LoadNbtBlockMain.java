@@ -11,8 +11,7 @@ import net.minecraft.util.registry.Registry;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
-public class LoadNbtBlockMain implements ModInitializer
-{
+public class LoadNbtBlockMain implements ModInitializer {
     public static final String MODID = "load_nbt_block";
     public static final Logger LOGGER = LogManager.getLogger();
 

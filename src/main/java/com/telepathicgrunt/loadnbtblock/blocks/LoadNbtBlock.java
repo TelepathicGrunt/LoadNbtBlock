@@ -24,9 +24,7 @@ import net.minecraft.util.hit.BlockHitResult;
 import net.minecraft.util.math.BlockPos;
 import net.minecraft.world.World;
 import net.minecraft.world.chunk.Chunk;
-import net.minecraft.world.chunk.ChunkSection;
 import net.minecraft.world.chunk.ChunkStatus;
-import net.minecraft.world.chunk.PalettedContainer;
 import net.minecraft.world.chunk.WorldChunk;
 
 import java.io.File;
@@ -113,12 +111,12 @@ public class LoadNbtBlock extends Block {
 
                     currentChunkCount++;
                     if (chunk instanceof WorldChunk worldChunk) {
-                        worldChunk.markDirty();
+                        worldChunk.needsSaving();
 
                         // Send changes to client to see
                         ((ServerChunkManager) world.getChunkManager()).threadedAnvilChunkStorage
                                 .getPlayersWatchingChunk(chunk.getPos(), false)
-                                .forEach(s -> s.networkHandler.sendPacket(new ChunkDataS2CPacket(worldChunk)));
+                                .forEach(s -> s.networkHandler.sendPacket(new ChunkDataS2CPacket(worldChunk, world.getLightingProvider(), null, null, true)));
                     }
                     player.sendMessage(new LiteralText("Working part 2: %" + Math.round(((float) currentChunkCount / maxChunks) * 10000f) / 100f), true);
                 }
